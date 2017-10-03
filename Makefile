@@ -3,4 +3,4 @@ build:
 
 .PHONY: run
 run: build
-	sudo ./go-ping
+	sudo ./go-ping $(host)

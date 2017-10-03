@@ -21,3 +21,8 @@ Usage: ./go-ping host
 ```
 
 **Note:** You need `sudo` privileges in order to send ping requests, so `make run` uses `sudo` for running the binary that is built.
+
+
+## Acknowledgements
+
+I've used [go-fastping](https://github.com/tatsushid/go-fastping) a lot as a reference  while trying to understand how to implement ping, and a few fuctions were directly copied from it (see comments in the code) and adapted for use with my own implementation.
