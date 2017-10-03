@@ -25,7 +25,7 @@ func main() {
 	host := flag.Arg(0)
 	addr, err := pinger.Resolve(host)
 	if err != nil {
-		fmt.Printf("failed to resolve host %s: %v", host, err)
+		fmt.Printf("failed to resolve host %s: %v\n", host, err)
 		os.Exit(2)
 	}
 
@@ -35,8 +35,40 @@ func main() {
 		Timeout:    time.Duration(*timeout) * time.Second,
 	})
 
-	if err := pinger.Ping(addr); err != nil {
-		fmt.Printf("failed to ping %s: %v\n", addr, err)
-		os.Exit(2)
+	done := make(chan struct{})
+	results, errors := pinger.Report()
+	stop := false
+
+	fmt.Printf("PING %s: %d data bytes\n", addr, *packetSize)
+
+	go func(done chan struct{}) {
+		pinger.Ping(addr)
+		done <- struct{}{}
+	}(done)
+
+	for !stop {
+		select {
+		case <-done:
+			stop = true
+		case res, ok := <-results:
+			if !ok {
+				continue
+			}
+
+			if res.Timeout {
+				fmt.Printf("Request timeout for icmp_seq %d\n", res.Seq)
+			} else {
+				fmt.Printf("%d bytes from %v: icmp_seq=%d time=%.3f ms\n", res.Size, addr, res.Seq, timeInMillis(res.RTT))
+			}
+		case err := <-errors:
+			fmt.Printf("failed to ping %s: %v\n", host, err)
+			os.Exit(2)
+		}
 	}
+
+}
+
+// timeInMillis returns the amount of milliseconds in d as a float64.
+func timeInMillis(d time.Duration) float64 {
+	return float64(d.Nanoseconds()) / (float64(time.Millisecond) / float64(time.Nanosecond))
 }

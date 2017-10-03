@@ -36,10 +36,13 @@ func init() {
 // Pinger defines the operations of a pinger.
 type Pinger interface {
 	// Ping accepts a net.Addr representing a host and sends ICMP ping packets
-	// to that host. It returns a non-nil error in case it fails to parse
-	// the given host, or it fails to send the first packet, or the connection
-	// to the host is interrupted.
-	Ping(addr net.Addr) error
+	// to that host.
+	Ping(addr net.Addr)
+
+	// Report returns the pair of channels where results will be reported to:
+	// 1) a channel of type Ping for successful requests (including temporary errors, e.g. timeouts)
+	// 2) a channel of type error for unrecoverable errors
+	Report() (<-chan Ping, <-chan error)
 }
 
 // Options defines the options for a Pinger.
@@ -77,45 +80,74 @@ func Resolve(host string) (net.Addr, error) {
 	return net.ResolveIPAddr("ip4:icmp", host)
 }
 
+// Ping represents a ping request/response.
+type Ping struct {
+	// Seq is the sequence number.
+	Seq int
+
+	// Size is the number of bytes in the response.
+	Size int
+
+	// RTT is the duration for the round trip.
+	RTT time.Duration
+
+	// Timeout is whether or not the request timed out.
+	Timeout bool
+}
+
 // NewPinger accepts an Options object and returns a new Pinger
 // configured with the given options.
 func NewPinger(opts *Options) Pinger {
 	opts.setDefaults()
 	return &pinger{
-		id:   rand.Intn(maxID),
-		opts: opts,
+		id:         rand.Intn(maxID),
+		reportChan: make(chan Ping), // TODO: use buffer?
+		errChan:    make(chan error, 1),
+		opts:       opts,
 	}
 }
 
 // pinger is the default implementation for Pinger.
 type pinger struct {
-	id   int
-	opts *Options
+	id         int
+	reportChan chan Ping
+	errChan    chan error
+	opts       *Options
+}
+
+// Report returns the pair of channels used for reporting.
+func (p *pinger) Report() (<-chan Ping, <-chan error) {
+	return p.reportChan, p.errChan
 }
 
 // Ping uses Go's x/net/icmp package to send ping packets to the given addr.
-func (p *pinger) Ping(addr net.Addr) error {
+func (p *pinger) Ping(addr net.Addr) {
+	defer close(p.reportChan)
+
 	conn, err := icmp.ListenPacket("ip4:icmp", "")
 	if err != nil {
-		return fmt.Errorf("cannot connect to addr %s: %v", addr, err)
+		p.errChan <- fmt.Errorf("cannot connect to addr %s: %v", addr, err)
+		return
 	}
 	defer conn.Close()
 
 	seq := 0
 	stop := false
 
-	fmt.Printf("PING %s: %d data bytes\n", addr, p.opts.PacketSize)
-
 	for !stop {
 		pktSize, err := p.send(conn, addr, seq)
 		if err != nil {
-			return fmt.Errorf("cannot send ping packet for icmp_seq %d: %v", seq, err)
+			p.errChan <- fmt.Errorf("cannot send ping packet for icmp_seq %d: %v", seq, err)
+			return
 		}
 
-		if err := p.recv(conn, seq, pktSize); err != nil {
-			return err
+		ping, err := p.recv(conn, seq, pktSize)
+		if err != nil {
+			p.errChan <- err
+			return
 		}
 
+		p.reportChan <- ping
 		seq++
 
 		if p.opts.Count != 0 {
@@ -126,8 +158,6 @@ func (p *pinger) Ping(addr net.Addr) error {
 			time.Sleep(time.Second)
 		}
 	}
-
-	return nil
 }
 
 func (p *pinger) send(conn *icmp.PacketConn, addr net.Addr, seq int) (int, error) {
@@ -143,28 +173,31 @@ func (p *pinger) send(conn *icmp.PacketConn, addr net.Addr, seq int) (int, error
 	return len(pktBytes), nil
 }
 
-func (p *pinger) recv(conn *icmp.PacketConn, seq int, pktSize int) error {
+func (p *pinger) recv(conn *icmp.PacketConn, seq int, pktSize int) (Ping, error) {
 	conn.SetReadDeadline(time.Now().Add(p.opts.Timeout))
-
 	resBytes := make([]byte, pktSize)
-	n, ra, err := conn.ReadFrom(resBytes)
+	n, _, err := conn.ReadFrom(resBytes)
 	if err != nil {
 		if neterr, ok := err.(*net.OpError); ok && neterr.Timeout() {
-			fmt.Printf("Request timeout for icmp_seq %d\n", seq)
-			return nil
+			return Ping{
+				Seq:     seq,
+				Timeout: true,
+			}, nil
 		} else {
-			return fmt.Errorf("cannot read packet for icmp_seq %d: %v", seq, err)
+			return Ping{}, fmt.Errorf("cannot read packet for icmp_seq %d: %v", seq, err)
 		}
 	}
 
 	res, err := p.parse(seq, resBytes)
 	if err != nil {
-		return err
+		return Ping{}, err
 	}
 
-	fmt.Printf("%d bytes from %v: icmp_seq=%d time=%.3f ms\n", n, ra, seq, timeElapsedInMillis(bytesToTime(res.Data[:timeByteSize])))
-
-	return nil
+	return Ping{
+		Seq:  seq,
+		Size: n,
+		RTT:  time.Since(bytesToTime(res.Data[:timeByteSize])),
+	}, nil
 }
 
 func (p *pinger) parse(seq int, resBytes []byte) (*icmp.Echo, error) {
@@ -229,9 +262,4 @@ func bytesToTime(b []byte) time.Time {
 		nsec += int64(b[i]) << ((7 - i) * timeByteSize)
 	}
 	return time.Unix(nsec/1000000000, nsec%1000000000)
-}
-
-// timeElapsedInMillis returns the amount of milliseconds since start as a float64.
-func timeElapsedInMillis(start time.Time) float64 {
-	return float64(time.Since(start).Nanoseconds()) / (float64(time.Millisecond) / float64(time.Nanosecond))
 }
