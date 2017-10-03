@@ -35,11 +35,11 @@ func init() {
 
 // Pinger defines the operations of a pinger.
 type Pinger interface {
-	// Ping accepts a string containing a host and sends ICMP ping packets
+	// Ping accepts a net.Addr representing a host and sends ICMP ping packets
 	// to that host. It returns a non-nil error in case it fails to parse
 	// the given host, or it fails to send the first packet, or the connection
 	// to the host is interrupted.
-	Ping(host string) error
+	Ping(addr net.Addr) error
 }
 
 // Options defines the options for a Pinger.
@@ -72,6 +72,11 @@ func (o *Options) setDefaults() {
 	}
 }
 
+// Resolve resolves the given host to a net.Addr.
+func Resolve(host string) (net.Addr, error) {
+	return net.ResolveIPAddr("ip4:icmp", host)
+}
+
 // NewPinger accepts an Options object and returns a new Pinger
 // configured with the given options.
 func NewPinger(opts *Options) Pinger {
@@ -88,16 +93,11 @@ type pinger struct {
 	opts *Options
 }
 
-// Ping uses Go's x/net/icmp package to send ping packets to the given host.
-func (p *pinger) Ping(host string) error {
-	addr, err := net.ResolveIPAddr("ip4:icmp", host)
-	if err != nil {
-		return fmt.Errorf("cannot resolve host %s: %v", host, err)
-	}
-
+// Ping uses Go's x/net/icmp package to send ping packets to the given addr.
+func (p *pinger) Ping(addr net.Addr) error {
 	conn, err := icmp.ListenPacket("ip4:icmp", "")
 	if err != nil {
-		return fmt.Errorf("cannot connect to host %s: %v", host, err)
+		return fmt.Errorf("cannot connect to addr %s: %v", addr, err)
 	}
 	defer conn.Close()
 

@@ -23,14 +23,20 @@ func main() {
 	}
 
 	host := flag.Arg(0)
+	addr, err := pinger.Resolve(host)
+	if err != nil {
+		fmt.Printf("failed to resolve host %s: %v", host, err)
+		os.Exit(2)
+	}
+
 	pinger := pinger.NewPinger(&pinger.Options{
 		Count:      *count,
 		PacketSize: *packetSize,
 		Timeout:    time.Duration(*timeout) * time.Second,
 	})
 
-	if err := pinger.Ping(host); err != nil {
-		fmt.Printf("failed to ping %s: %v\n", host, err)
+	if err := pinger.Ping(addr); err != nil {
+		fmt.Printf("failed to ping %s: %v\n", addr, err)
 		os.Exit(2)
 	}
 }
