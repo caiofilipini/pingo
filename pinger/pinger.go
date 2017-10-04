@@ -156,7 +156,7 @@ func (p *pinger) Ping(addr net.Addr) {
 	}
 }
 
-func (p *pinger) send(conn *icmp.PacketConn, addr net.Addr, seq int) (int, error) {
+func (p *pinger) send(conn net.PacketConn, addr net.Addr, seq int) (int, error) {
 	pktBytes, err := createPacket(p.id, seq, int(p.opts.PacketSize))
 	if err != nil {
 		return 0, fmt.Errorf("cannot encode packet: %v", err)
@@ -169,7 +169,7 @@ func (p *pinger) send(conn *icmp.PacketConn, addr net.Addr, seq int) (int, error
 	return len(pktBytes), nil
 }
 
-func (p *pinger) recv(conn *icmp.PacketConn, seq int, pktSize int) (Ping, error) {
+func (p *pinger) recv(conn net.PacketConn, seq int, pktSize int) (Ping, error) {
 	conn.SetReadDeadline(time.Now().Add(p.opts.Timeout))
 	resBytes := make([]byte, pktSize)
 	n, _, err := conn.ReadFrom(resBytes)
