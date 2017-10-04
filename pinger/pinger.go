@@ -132,9 +132,7 @@ func (p *pinger) Ping(addr net.Addr) {
 	defer conn.Close()
 
 	seq := 0
-	stop := false
-
-	for !stop {
+	for {
 		pktSize, err := p.send(conn, addr, seq)
 		if err != nil {
 			p.errChan <- fmt.Errorf("cannot send ping packet for icmp_seq %d: %v", seq, err)
@@ -150,13 +148,11 @@ func (p *pinger) Ping(addr net.Addr) {
 		p.reportChan <- ping
 		seq++
 
-		if p.opts.Count != 0 {
-			stop = int(p.opts.Count) == seq
+		if p.opts.Count != 0 && int(p.opts.Count) == seq {
+			break
 		}
 
-		if !stop {
-			time.Sleep(time.Second)
-		}
+		time.Sleep(time.Second)
 	}
 }
 
