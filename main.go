@@ -66,6 +66,21 @@ func main() {
 		}
 	}
 
+	printStats(host, pinger.Stats())
+}
+
+func printStats(host string, stats pinger.Stats) {
+	fmt.Println()
+	fmt.Printf("--- %s ping statistics ---\n", host)
+	fmt.Printf(
+		"%d packets transmitted, %d packets received, %.1f%% packet loss\n",
+		stats.Transmitted(),
+		stats.Received(),
+		stats.PacketLoss(),
+	)
+
+	min, avg, max, stddev := stats.RTTStats()
+	fmt.Printf("round-trip min/avg/max/stddev = %.3f/%.3f/%.3f/%.3f ms\n", min, avg, max, stddev)
 }
 
 // timeInMillis returns the amount of milliseconds in d as a float64.
