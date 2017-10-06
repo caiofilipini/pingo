@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/caiofilipini/go-ping/math"
 	"github.com/caiofilipini/go-ping/pinger"
 )
 
@@ -58,7 +59,12 @@ func main() {
 			if res.Timeout {
 				fmt.Printf("Request timeout for icmp_seq %d\n", res.Seq)
 			} else {
-				fmt.Printf("%d bytes from %v: icmp_seq=%d time=%.3f ms\n", res.Size, addr, res.Seq, timeInMillis(res.RTT))
+				fmt.Printf("%d bytes from %v: icmp_seq=%d time=%.3f ms\n",
+					res.Size,
+					addr,
+					res.Seq,
+					math.TimeInMillis(res.RTT),
+				)
 			}
 		case err := <-errors:
 			fmt.Printf("failed to ping %s: %v\n", host, err)
@@ -81,9 +87,4 @@ func printStats(host string, stats pinger.Stats) {
 
 	min, avg, max, stddev := stats.RTTStats()
 	fmt.Printf("round-trip min/avg/max/stddev = %.3f/%.3f/%.3f/%.3f ms\n", min, avg, max, stddev)
-}
-
-// timeInMillis returns the amount of milliseconds in d as a float64.
-func timeInMillis(d time.Duration) float64 {
-	return float64(d.Nanoseconds()) / (float64(time.Millisecond) / float64(time.Nanosecond))
 }
