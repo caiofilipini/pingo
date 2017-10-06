@@ -31,19 +31,16 @@ func (s *Stats) PacketLoss() float64 {
 // RTTStats calculates and returns, respectively, the min, average, max and
 // standard deviation for round-trip latencies.
 func (s *Stats) RTTStats() (float64, float64, float64, float64) {
-	var min, max, sum float64
+	var max, sum float64
+	min := math.MaxFloat64
 
 	rttsInMillis := make([]float64, len(s.rtts))
 	for i, rtt := range s.rtts {
 		rttInMillis := timeInMillis(rtt)
 		rttsInMillis[i] = rttInMillis
 
-		if min == float64(0) || rttInMillis < min {
-			min = rttInMillis
-		}
-		if max == float64(0) || rttInMillis > max {
-			max = rttInMillis
-		}
+		min = math.Min(min, rttInMillis)
+		max = math.Max(max, rttInMillis)
 
 		sum += rttInMillis
 	}
