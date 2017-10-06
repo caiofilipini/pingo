@@ -36,8 +36,12 @@ func init() {
 // Pinger defines the operations of a pinger.
 type Pinger interface {
 	// Ping accepts a net.Addr representing a host and sends ICMP ping packets
-	// to that host.
+	// to that host. Ping is a blocking operation.
 	Ping(addr net.Addr)
+
+	// Stop signals the Pinger to stop sending ping requests to the host.
+	// After a call to Stop(), Ping() is expected to return.
+	Stop()
 
 	// Report returns the pair of channels where results will be reported to:
 	// 1) a channel of type Ping for successful requests (including temporary errors, e.g. timeouts)
@@ -108,6 +112,7 @@ func NewPinger(opts *Options) Pinger {
 		opts:       opts,
 		reportChan: make(chan Ping), // TODO: use buffer?
 		errChan:    make(chan error, 1),
+		stop:       make(chan struct{}, 1),
 		stats:      &Stats{},
 	}
 }
@@ -119,6 +124,7 @@ type pinger struct {
 	reportChan chan Ping
 	errChan    chan error
 	stats      *Stats
+	stop       chan struct{}
 }
 
 // Report returns the pair of channels used for reporting.
@@ -132,8 +138,10 @@ func (p *pinger) Stats() Stats {
 }
 
 // Ping uses Go's x/net/icmp package to send ping packets to the given addr.
+// Ping is a blocking operation.
 func (p *pinger) Ping(addr net.Addr) {
 	defer close(p.reportChan)
+	defer close(p.errChan)
 
 	conn, err := icmp.ListenPacket("ip4:icmp", "")
 	if err != nil {
@@ -144,27 +152,37 @@ func (p *pinger) Ping(addr net.Addr) {
 
 	seq := 0
 	for {
-		pktSize, err := p.send(conn, addr, seq)
-		if err != nil {
-			p.errChan <- fmt.Errorf("cannot send ping packet for icmp_seq %d: %v", seq, err)
+		select {
+		case <-p.stop:
 			return
+		default:
+			pktSize, err := p.send(conn, addr, seq)
+			if err != nil {
+				p.errChan <- fmt.Errorf("cannot send ping packet for icmp_seq %d: %v", seq, err)
+				return
+			}
+
+			ping, err := p.recv(conn, seq, pktSize)
+			if err != nil {
+				p.errChan <- err
+				return
+			}
+
+			p.reportChan <- ping
+			seq++
+
+			if p.opts.Count != 0 && int(p.opts.Count) == seq {
+				p.Stop()
+			} else {
+				time.Sleep(time.Second)
+			}
 		}
-
-		ping, err := p.recv(conn, seq, pktSize)
-		if err != nil {
-			p.errChan <- err
-			return
-		}
-
-		p.reportChan <- ping
-		seq++
-
-		if p.opts.Count != 0 && int(p.opts.Count) == seq {
-			break
-		}
-
-		time.Sleep(time.Second)
 	}
+}
+
+// Stop signals the Pinger to stop sending ping requests to the host.
+func (p *pinger) Stop() {
+	p.stop <- struct{}{}
 }
 
 func (p *pinger) send(conn net.PacketConn, addr net.Addr, seq int) (int, error) {

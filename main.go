@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/caiofilipini/go-ping/math"
@@ -47,10 +49,15 @@ func main() {
 		done <- struct{}{}
 	}(done)
 
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+
 	for !stop {
 		select {
 		case <-done:
 			stop = true
+		case <-sig:
+			pinger.Stop()
 		case res, ok := <-results:
 			if !ok {
 				continue
@@ -66,9 +73,11 @@ func main() {
 					math.TimeInMillis(res.RTT),
 				)
 			}
-		case err := <-errors:
-			fmt.Printf("failed to ping %s: %v\n", host, err)
-			os.Exit(2)
+		case err, ok := <-errors:
+			if ok {
+				fmt.Printf("failed to ping %s: %v\n", host, err)
+				os.Exit(2)
+			}
 		}
 	}
 
