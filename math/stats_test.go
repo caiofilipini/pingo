@@ -1,6 +1,8 @@
 package math
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestMin(t *testing.T) {
 	tests := []struct {
@@ -91,4 +93,75 @@ func TestMax(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMean(t *testing.T) {
+	tests := []struct {
+		desc       string
+		population []float64
+		expected   float64
+	}{
+		{
+			desc:       "returns zero for an empty population",
+			population: []float64{},
+			expected:   0,
+		},
+		{
+			desc:       "returns the single value in the population",
+			population: []float64{4.22},
+			expected:   4.22,
+		},
+		{
+			desc:       "returns the average of the population",
+			population: []float64{-1.1, 5.8, 9.9, 1.4},
+			expected:   4.0, // -1.1 + 5.8 + 9.9 + 1.4 = 16.0 => 16.0 / 4 = 4.0
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			mean := Mean(tc.population)
+			if mean != tc.expected {
+				t.Errorf("wanted %f, got %f", tc.expected, mean)
+			}
+		})
+	}
+}
+
+func TestStdDev(t *testing.T) {
+	tests := []struct {
+		desc       string
+		population []float64
+		expected   float64
+	}{
+		{
+			desc:       "returns zero for an empty population",
+			population: []float64{},
+			expected:   0,
+		},
+		{
+			desc:       "returns zero for a single value",
+			population: []float64{4.22},
+			expected:   0,
+		},
+		{
+			desc:       "returns the standard deviation of the population",
+			population: []float64{3.11, 4.22, 5.33, 6.44},
+			expected:   1.24,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			stddev := round(StdDev(tc.population))
+			if stddev != tc.expected {
+				t.Errorf("wanted %f, got %f", tc.expected, stddev)
+			}
+		})
+	}
+}
+
+// round truncates the given float64 to 2 decimal places.
+func round(n float64) float64 {
+	return float64(int(n*100)) / 100
 }
