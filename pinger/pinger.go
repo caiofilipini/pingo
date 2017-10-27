@@ -156,13 +156,7 @@ func (p *pinger) Ping(addr net.Addr) {
 		case <-p.stop:
 			return
 		default:
-			pktSize, err := p.send(conn, addr, seq)
-			if err != nil {
-				p.errChan <- fmt.Errorf("cannot send ping packet for icmp_seq %d: %v", seq, err)
-				return
-			}
-
-			ping, err := p.recv(conn, seq, pktSize)
+			ping, err := p.ping(conn, addr, seq)
 			if err != nil {
 				p.errChan <- err
 				return
@@ -183,6 +177,15 @@ func (p *pinger) Ping(addr net.Addr) {
 // Stop signals the Pinger to stop sending ping requests to the host.
 func (p *pinger) Stop() {
 	p.stop <- struct{}{}
+}
+
+func (p *pinger) ping(conn net.PacketConn, addr net.Addr, seq int) (Ping, error) {
+	pktSize, err := p.send(conn, addr, seq)
+	if err != nil {
+		return Ping{}, fmt.Errorf("cannot send ping packet for icmp_seq %d: %v", seq, err)
+	}
+
+	return p.recv(conn, seq, pktSize)
 }
 
 func (p *pinger) send(conn net.PacketConn, addr net.Addr, seq int) (int, error) {
