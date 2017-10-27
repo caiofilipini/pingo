@@ -1,6 +1,6 @@
 build:
-	go build -o go-ping
+	go build -o pingo
 
 .PHONY: run
 run: build
-	sudo ./go-ping $(host)
+	sudo ./pingo $(host)

@@ -3,7 +3,7 @@ package pinger
 import (
 	"time"
 
-	"github.com/caiofilipini/go-ping/math"
+	"github.com/caiofilipini/pingo/math"
 )
 
 // Stats stores the packet statistics.

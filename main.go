@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/caiofilipini/go-ping/math"
-	"github.com/caiofilipini/go-ping/pinger"
+	"github.com/caiofilipini/pingo/math"
+	"github.com/caiofilipini/pingo/pinger"
 )
 
 func main() {
