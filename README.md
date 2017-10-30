@@ -2,6 +2,10 @@
 
 This is a naive implementation of the `ping` command using Go's `x/net/icmp` package. This is a learning/experimentation exercise.
 
+![Stranger Pings](stranger-pings.jpg)
+
+_Image credits:_ https://twitter.com/alicegoldfuss/status/923947130074439680
+
 ## Building
 
 A `make build` should build a binary called `pingo`.
