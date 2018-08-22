@@ -191,7 +191,7 @@ func (p *pinger) ping(conn net.PacketConn, addr net.Addr, seq int) (Ping, error)
 }
 
 func (p *pinger) send(conn net.PacketConn, addr net.Addr, seq int) (int, error) {
-	pktBytes, err := createPacket(p.id, seq, int(p.opts.PacketSize))
+	pktBytes, err := createPacket(p.id, seq, int(p.opts.PacketSize), p.clock.Now())
 	if err != nil {
 		return 0, fmt.Errorf("cannot encode packet: %v", err)
 	}
@@ -255,8 +255,8 @@ func (p *pinger) parse(seq int, resBytes []byte) (*icmp.Echo, error) {
 	return pkt, nil
 }
 
-func createPacket(id int, seq int, size int) ([]byte, error) {
-	payload := timeToBytes(time.Now())
+func createPacket(id int, seq int, size int, now time.Time) ([]byte, error) {
+	payload := timeToBytes(now)
 
 	remaining := size - len(payload)
 	if remaining > 0 {
