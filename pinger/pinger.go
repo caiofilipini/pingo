@@ -114,6 +114,7 @@ func NewPinger(opts *Options) Pinger {
 		errChan:    make(chan error, 1),
 		stop:       make(chan struct{}, 1),
 		stats:      &Stats{},
+		clock:      defaultClock{},
 	}
 }
 
@@ -125,6 +126,7 @@ type pinger struct {
 	errChan    chan error
 	stats      *Stats
 	stop       chan struct{}
+	clock      clock
 }
 
 // Report returns the pair of channels used for reporting.
@@ -222,7 +224,7 @@ func (p *pinger) recv(conn net.PacketConn, seq int, pktSize int) (Ping, error) {
 		return Ping{}, err
 	}
 
-	rtt := time.Since(bytesToTime(res.Data[:timeByteSize]))
+	rtt := p.clock.Now().Sub(bytesToTime(res.Data[:timeByteSize]))
 	p.stats.incSuccess(rtt)
 
 	return Ping{
